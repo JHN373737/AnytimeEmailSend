@@ -40,7 +40,7 @@ def getBody():
     body = body[:-1] #remove last newLine
     return body
 
-def imapSetup(username, password): # connect to GMAIL server through imap
+def imapSetup(username, password): # connect to GMAIL server through imap # remember to logout
     imapObj = imaplib.IMAP4_SSL('imap.gmail.com')
 
     try:
@@ -50,7 +50,7 @@ def imapSetup(username, password): # connect to GMAIL server through imap
         sys.exit()
     return imapObj
 
-def smtpSetup(username,password): # connect to GMAIL server through smtp
+def smtpSetup(username,password): # connect to GMAIL server through smtp # remember to logout
     session = smtplib.SMTP('smtp.gmail.com',587) #connect to gmail server
     session.ehlo() # initiate connection to server
     session.starttls() # encrypt messages to server
@@ -95,20 +95,22 @@ def retrieveDrafts(imapObj):
         if status=='OK':
             draftIDList = draftsSearch[0].split() # returns a list of email ids that have the match
             draftID = draftIDList[0]
-            print(draftID)
             status, draftFetch = imapObj.fetch(draftID,'(RFC822)')
-            print(draftFetch[0][1])
             if status == 'OK':
-                draftMessage = email.message_from_string(draftFetch[0][1])
-                print('Message: %s' % (draftMessage['Subject']))
-
-                #print(draftMessage['Subject'])
-                #print(draftMessage['To'])
+                draftMessage = email.message_from_bytes(draftFetch[0][1])
+                print(draftMessage['From'])
+                print(draftMessage['To'])
+                print(draftMessage['Subject'])
+                if draftMessage.is_multipart():
+                    for payload in draftMessage.get_payload():
+                        # if payload.is_multipart(): ...
+                        print(payload.get_payload())
+                else:
+                    print(draftMessage.get_payload())
             else:
                 print("fetch not okay")
         else:
             print("search not okay")
-
     else:
         print("select not okay")
 
