@@ -73,21 +73,18 @@ def createEmail(sender,recipient,subject,body):
     return email
 
 # takes smtp object
-def sendEmail(session):
+def sendEmail(session, message): #assumes message is an email object
     print("Creating email\n")
-    recipient = getRecipent()
-    email = createEmail(username,recipient,getSubject(),getBody())
-    email = email.as_string()
+    recipient = message['To']
+    email = message.as_string()
     session.sendmail(username,recipient,email)
     print("Email Sent\n")
     #close connection to smtp server
-    session.quit()
 
 def retrieveDrafts(imapObj):
     #imap functions typically return tuple with 1st element = return status, 2nd element = data
     print("Retrieving Drafts (Make sure there is only one email with same subject and recipient)")
     status, draftsMailbox = imapObj.select("[Gmail]/Drafts")
-    ########################### seperate into getMailbox, getEmail ##################
     if status=='OK':
         recipient = getRecipent()
         subject = getSubject()
@@ -98,15 +95,8 @@ def retrieveDrafts(imapObj):
             status, draftFetch = imapObj.fetch(draftID,'(RFC822)')
             if status == 'OK':
                 draftMessage = email.message_from_bytes(draftFetch[0][1])
-                print(draftMessage['From'])
-                print(draftMessage['To'])
-                print(draftMessage['Subject'])
-                if draftMessage.is_multipart():
-                    for payload in draftMessage.get_payload():
-                        # if payload.is_multipart(): ...
-                        print(payload.get_payload())
-                else:
-                    print(draftMessage.get_payload())
+                imapObj.close()
+                return draftMessage
             else:
                 print("fetch not okay")
         else:
@@ -114,13 +104,32 @@ def retrieveDrafts(imapObj):
     else:
         print("select not okay")
 
+def moveEmail():
+    print()
+
+def sendFromDrafts(session, imapObj): #recieves smtp object and imap object
+    draftMessage = retrieveDrafts(imapObj)
+    sender = draftMessage['From']
+    recipient = draftMessage['To']
+    subject = draftMessage['Subject']
+    body = ""
+    if draftMessage.is_multipart():
+        for payload in draftMessage.get_payload():
+           #body += payload.get_payload() # need to test
+    else:
+        body = draftMessage.get_payload()
+
+    createEmail(sender,recipient,subject,body) # creates temp email for sending through smtp
+    sendEmail(session, draftMessage)
+    moveEmail() # moves original email from drafts to sent
+
 def main():
     username = getUser()
     password = getPass()
     imapObj = imapSetup(username, password)
-    #session = smtpSetup(username, password)
-    #session.quit()
-    retrieveDrafts(imapObj)
+    session = smtpSetup(username, password)
+    sendFromDrafts(session,imapObj)
+    session.quit()
     imapObj.logout()
 
 
