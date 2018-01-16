@@ -87,20 +87,30 @@ def retrieveDrafts(imapObj):
     #imap functions typically return tuple with 1st element = return status, 2nd element = data
     print("Retrieving Drafts (Make sure there is only one email with same subject and recipient)")
     status, draftsMailbox = imapObj.select("[Gmail]/Drafts")
-    recipient = getRecipent()
-    subject = getSubject()
+    ########################### seperate into getMailbox, getEmail ##################
     if status=='OK':
-        print("okay")
-        status, draftsMessage = imapObj.search(None,'TO',recipient,'SUBJECT',subject)
+        recipient = getRecipent()
+        subject = getSubject()
+        status, draftsSearch = imapObj.search(None,'TO',recipient,'SUBJECT',subject)
         if status=='OK':
-            print("subject okay")
-            draftID = draftsMessage[0].split() # returns a list of email ids that have the match
-            print(draftID[0])
+            draftIDList = draftsSearch[0].split() # returns a list of email ids that have the match
+            draftID = draftIDList[0]
+            print(draftID)
+            status, draftFetch = imapObj.fetch(draftID,'(RFC822)')
+            print(draftFetch[0][1])
+            if status == 'OK':
+                draftMessage = email.message_from_string(draftFetch[0][1])
+                print('Message: %s' % (draftMessage['Subject']))
+
+                #print(draftMessage['Subject'])
+                #print(draftMessage['To'])
+            else:
+                print("fetch not okay")
         else:
-            print("subject not okay")
+            print("search not okay")
 
     else:
-        print("not okay")
+        print("select not okay")
 
 def main():
     username = getUser()
