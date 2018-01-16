@@ -1,16 +1,19 @@
 import smtplib
 import getpass
-
+import sys
+import imaplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+import email
 
 #Notes: Gmail account must have "allow less secure apps" settings turned on to work
 
 # created with help from https://medium.com/@williamr/how-to-send-an-email-from-a-gmail-account-with-python-b5b6e44c27b6
     # and http://www.pythonforbeginners.com/code-snippets-source-code/using-python-to-send-email/
-    # and
+    # and http://www.voidynullness.net/blog/2013/07/25/gmail-email-with-python-via-imap/
 
 def getUser():
+    print("\nLogging in to Gmail (Gmail's allow less secure apps settings must be on)\n")
     return input("Enter Username:")
 def getPass():
     return getpass.getpass("Enter Password:")
@@ -37,14 +40,24 @@ def getBody():
     body = body[:-1] #remove last newLine
     return body
 
-def smtpSetup():
+def imapSetup(username, password): # connect to GMAIL server through imap
+    imapObj = imaplib.IMAP4_SSL('imap.gmail.com')
+
+    try:
+        imapObj.login(username, password)
+    except imaplib.IMAP4.error:
+        print("Incorrect Login")
+        sys.exit()
+    return imapObj
+
+def smtpSetup(username,password): # connect to GMAIL server through smtp
     session = smtplib.SMTP('smtp.gmail.com',587) #connect to gmail server
     session.ehlo() # initiate connection to server
     session.starttls() # encrypt messages to server
-    print("Logging in to Gmail\n")
-    session.login(getUser(),getPass())
+    session.login(username, password)
     print("Login successful\n")
     return session
+
 
 # does not accommodate CC or BCC header values
 #does not verify validity of sender,recipient email addresses
@@ -59,20 +72,45 @@ def createEmail(sender,recipient,subject,body):
     print("Email Created successfully\n")
     return email
 
-def sendEmail():
-    session = smtpSetup()
-
+# takes smtp object
+def sendEmail(session):
     print("Creating email\n")
-    user = getUser()
     recipient = getRecipent()
-    email = createEmail(user,recipient,getSubject(),getBody())
+    email = createEmail(username,recipient,getSubject(),getBody())
     email = email.as_string()
-    session.sendmail(user,recipient,email)
+    session.sendmail(username,recipient,email)
     print("Email Sent\n")
     #close connection to smtp server
     session.quit()
 
+def retrieveDrafts(imapObj):
+    #imap functions typically return tuple with 1st element = return status, 2nd element = data
+    print("Retrieving Drafts (Make sure there is only one email with same subject and recipient)")
+    status, draftsMailbox = imapObj.select("[Gmail]/Drafts")
+    recipient = getRecipent()
+    subject = getSubject()
+    if status=='OK':
+        print("okay")
+        status, draftsMessage = imapObj.search(None,'TO',recipient,'SUBJECT',subject)
+        if status=='OK':
+            print("subject okay")
+            draftID = draftsMessage[0].split() # returns a list of email ids that have the match
+            print(draftID[0])
+        else:
+            print("subject not okay")
+
+    else:
+        print("not okay")
+
 def main():
-    sendEmail()
+    username = getUser()
+    password = getPass()
+    imapObj = imapSetup(username, password)
+    #session = smtpSetup(username, password)
+    #session.quit()
+    retrieveDrafts(imapObj)
+    imapObj.logout()
+
+
 if __name__ == '__main__':
     main()
