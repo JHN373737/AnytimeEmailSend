@@ -96,41 +96,53 @@ def printEmail(email): #takes email object
     print(email['Subject'])
     print(getBodyfromEmail(email))
 
-def retrieveDrafts(imapObj):
-    #imap functions typically return tuple with 1st element = return status, 2nd element = data
-    print("Retrieving Drafts (Make sure there is only one email with same subject and recipient)")
-    status, draftsMailbox = imapObj.select("[Gmail]/Drafts")
-    if status=='OK':
-        recipient = getRecipent()
-        subject = getSubject()
-        status, draftsSearch = imapObj.search(None,'TO',recipient,'SUBJECT',subject)
-        if status=='OK':
-            draftIDList = draftsSearch[0].split() # returns a list of email ids that have the match
-            draftID = draftIDList[0]
-            status, draftFetch = imapObj.fetch(draftID,'(RFC822)')
-            if status == 'OK':
-                draftMessage = email.message_from_bytes(draftFetch[0][1])
-                imapObj.close()
-                return draftMessage
-            else:
-                print("fetch not okay")
+# returns ID of email with the specified search criteria(recipient, subject) in the specified mailbox
+    # if multiple emails match the search criteria, the ID of the first one will be returned (not sure if first=most recent or opposite)
+def getEmailID(imapObj, mailbox, searchRecipient, searchSubject):
+    status, Mailbox = imapObj.select(mailbox)
+    if status == 'OK':
+        status, searchResult = imapObj.search(None, 'TO', searchRecipient, 'SUBJECT', searchSubject)
+        if status == 'OK':
+            IDList = searchResult[0].split()  # returns a list of email ids that have the match
+            ID = IDList[0]
+            return ID
         else:
             print("search not okay")
     else:
         print("select not okay")
 
-def moveEmail(message, dstFolder):
-    print()
+#returns email ID and email contents (sender,recipient,subject,body) from Drafts
+def retrieveDrafts(imapObj):
+    print("Retrieving Drafts (Make sure there is only one email with same subject and recipient)")
+    mailbox = "[Gmail]/Drafts"
+    recipient = getRecipent()
+    subject = getSubject()
+    ID = getEmailID(imapObj,mailbox,recipient,subject)
+
+    status, fetchResult = imapObj.fetch(ID, '(RFC822)')
+    if status == 'OK':
+        message = email.message_from_bytes(fetchResult[0][1])
+        retTuple = (ID,message)
+        return retTuple
+    else:
+        print("fetch not okay")
+
+def deleteEmail(imapObj,emailID, mailbox):
+    imapObj.store(emailID, '+FLAGS', '\\Deleted')
+    imapObj.expunge()
 
 def sendFromDrafts(session, imapObj): #recieves smtp object and imap object
-    draftMessage = retrieveDrafts(imapObj)
+    draftTuple = retrieveDrafts(imapObj)
+    draftID = draftTuple[0]
+    draftMessage = draftTuple[1]
     sender = draftMessage['From']
     recipient = draftMessage['To']
     subject = draftMessage['Subject']
     body = getBodyfromEmail(draftMessage)
     email = createEmail(sender,recipient,subject,body) # creates temp email for sending through smtp
     sendEmail(sender, session, email)
-    #moveEmail() # moves original email from drafts to sent
+    mailbox = "[Gmail]/Drafts"
+    deleteEmail(imapObj,draftID, mailbox)
 
 def main():
     username = getUser()
