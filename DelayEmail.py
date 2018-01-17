@@ -21,7 +21,7 @@ def getRecipent():
     return input("Enter recipient address:")
 def getSubject():
     return input("Enter Email Subject:")
-def getBody():
+def getBodyfromInput():
     print("Enter Email Body(Use -1 on a separate line to save):\n")
     body = ""
     while True:
@@ -40,6 +40,16 @@ def getBody():
     body = body[:-1] #remove last newLine
     return body
 
+# LIMITATIONS: does not work after createEmail is called bc of MIMETEXT to str conversion?? IDK
+def getBodyfromEmail(email):
+    body = ""
+    if email.is_multipart():
+        for payload in email.get_payload()[:-1]:
+           body += payload.get_payload()
+    else:
+        body = email.get_payload()
+    body = body[:-1]  # extra newline for some reason
+    return body
 def imapSetup(username, password): # connect to GMAIL server through imap # remember to logout
     imapObj = imaplib.IMAP4_SSL('imap.gmail.com')
 
@@ -68,18 +78,23 @@ def createEmail(sender,recipient,subject,body):
     email['From'] = sender
     email['To'] = recipient
     email['Subject'] = subject
-    email.attach(MIMEText(body,'plain'))
+    email.attach(MIMEText(body[:-1],'plain')) #body[:-1] gets rid of extra newLine
     print("Email Created successfully\n")
     return email
 
 # takes smtp object
-def sendEmail(session, message): #assumes message is an email object
+def sendEmail(sender, session, message): #takes sender, smtp object, email object
     print("Creating email\n")
     recipient = message['To']
     email = message.as_string()
-    session.sendmail(username,recipient,email)
+    session.sendmail(sender,recipient,email)
     print("Email Sent\n")
-    #close connection to smtp server
+
+def printEmail(email): #takes email object
+    print(email['From'])
+    print(email['To'])
+    print(email['Subject'])
+    print(getBodyfromEmail(email))
 
 def retrieveDrafts(imapObj):
     #imap functions typically return tuple with 1st element = return status, 2nd element = data
@@ -104,7 +119,7 @@ def retrieveDrafts(imapObj):
     else:
         print("select not okay")
 
-def moveEmail():
+def moveEmail(message, dstFolder):
     print()
 
 def sendFromDrafts(session, imapObj): #recieves smtp object and imap object
@@ -112,16 +127,10 @@ def sendFromDrafts(session, imapObj): #recieves smtp object and imap object
     sender = draftMessage['From']
     recipient = draftMessage['To']
     subject = draftMessage['Subject']
-    body = ""
-    if draftMessage.is_multipart():
-        for payload in draftMessage.get_payload():
-           #body += payload.get_payload() # need to test
-    else:
-        body = draftMessage.get_payload()
-
-    createEmail(sender,recipient,subject,body) # creates temp email for sending through smtp
-    sendEmail(session, draftMessage)
-    moveEmail() # moves original email from drafts to sent
+    body = getBodyfromEmail(draftMessage)
+    email = createEmail(sender,recipient,subject,body) # creates temp email for sending through smtp
+    sendEmail(sender, session, email)
+    #moveEmail() # moves original email from drafts to sent
 
 def main():
     username = getUser()
@@ -129,9 +138,8 @@ def main():
     imapObj = imapSetup(username, password)
     session = smtpSetup(username, password)
     sendFromDrafts(session,imapObj)
-    session.quit()
+    session.quit() #close connection to smtp server
     imapObj.logout()
-
 
 if __name__ == '__main__':
     main()
