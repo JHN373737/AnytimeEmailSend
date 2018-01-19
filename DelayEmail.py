@@ -5,6 +5,7 @@ import imaplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import email
+import time
 
 #Notes: Gmail account must have "allow less secure apps" settings turned on to work
 
@@ -79,16 +80,18 @@ def createEmail(sender,recipient,subject,body):
     email['To'] = recipient
     email['Subject'] = subject
     email.attach(MIMEText(body[:-1],'plain')) #body[:-1] gets rid of extra newLine
-    print("Email Created successfully\n")
+    print("Email Created successfully")
     return email
 
-# takes smtp object
-def sendEmail(sender, session, message): #takes sender, smtp object, email object
-    print("Creating email\n")
+# smptp object must be created after the delay because the smtp server has a relatively small timeout value
+def sendEmail(username, password, sender, message): #takes username,passowrd, sender, email object
+    getDelay()
     recipient = message['To']
     email = message.as_string()
+    session = smtpSetup(username,password)
     session.sendmail(sender,recipient,email)
-    print("Email Sent\n")
+    print("Email Sent")
+    session.quit()  # close connection to smtp server
 
 def printEmail(email): #takes email object
     print(email['From'])
@@ -131,7 +134,25 @@ def deleteEmail(imapObj,emailID, mailbox):
     imapObj.store(emailID, '+FLAGS', '\\Deleted')
     imapObj.expunge()
 
-def sendFromDrafts(session, imapObj): #recieves smtp object and imap object
+def convertToSec(hr,min,sec):
+    return (hr*3600+min*60+sec)
+
+def getDelay():
+    inputList = []
+    while len(inputList) != 3:
+        inTime = input("How long would you like to wait before sending the email?(hr:min:sec)\nType 0:0:0 to send immediately.\n ")
+        inputList = inTime.split(":")
+        if len(inputList) != 3:
+            print("incorrect format, remember to use colons")
+    hr = int(inputList[0])
+    min = int(inputList[1])
+    sec = int(inputList[2])
+    delayTime = convertToSec(hr,min,sec)
+    print("starting delay (cntrl+C to cancel)")
+    time.sleep(delayTime)
+    print("delay finished")
+
+def sendDraft(username,password, imapObj): #recieves username, password and imap object
     draftTuple = retrieveDrafts(imapObj)
     draftID = draftTuple[0]
     draftMessage = draftTuple[1]
@@ -140,17 +161,19 @@ def sendFromDrafts(session, imapObj): #recieves smtp object and imap object
     subject = draftMessage['Subject']
     body = getBodyfromEmail(draftMessage)
     email = createEmail(sender,recipient,subject,body) # creates temp email for sending through smtp
-    sendEmail(sender, session, email)
     mailbox = "[Gmail]/Drafts"
-    deleteEmail(imapObj,draftID, mailbox)
+    deleteEmail(imapObj, draftID, mailbox) # once a new temp email is created, the original can be deleted
+
+    sendEmail(username, password, sender, email) # includes delay function and creation of smtp obj
+
 
 def main():
     username = getUser()
     password = getPass()
     imapObj = imapSetup(username, password)
-    session = smtpSetup(username, password)
-    sendFromDrafts(session,imapObj)
-    session.quit() #close connection to smtp server
+    sendDraft(username,password,imapObj)
+    #session = smtpSetup(username,password)
+    #session.quit()
     imapObj.logout()
 
 if __name__ == '__main__':
