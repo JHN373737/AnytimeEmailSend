@@ -1,2 +1,2 @@
 # Python project that allows automatic sending of email from Gmail drafts at any given time.
-# Ex: email written and saved to drafts at 2pm. Can later be sent at 7 pm automatically.
+# Ex: Email is written and saved to Drafts at 2pm. By running this program the user can pick any time after 2pm, and the email will be sent automatically at that time.
